@@ -23,69 +23,51 @@ func main() {
 }
 
 type dish struct {
-	name string
-	sync.Mutex
-	morsels int
+	name    string
+	morsels chan struct{}
 }
 
-type dinner struct {
-	dishes [5]*dish
-	sync.Mutex
-	total int
-}
+type dinner [5]*dish
 
 func newDinner() *dinner {
-	d := [5]*dish{
-		&dish{name: "chorizos", morsels: 5 + rand.Intn(6)},
-		&dish{name: "chopitos", morsels: 5 + rand.Intn(6)},
-		&dish{name: "croquetas", morsels: 5 + rand.Intn(6)},
-		&dish{name: "patatas bravas", morsels: 5 + rand.Intn(6)},
-		&dish{name: "pimientos de padrón", morsels: 5 + rand.Intn(6)},
+	d := dinner{
+		&dish{name: "chorizos", morsels: make(chan struct{}, 5+rand.Intn(6))},
+		&dish{name: "chopitos", morsels: make(chan struct{}, 5+rand.Intn(6))},
+		&dish{name: "croquetas", morsels: make(chan struct{}, 5+rand.Intn(6))},
+		&dish{name: "patatas bravas", morsels: make(chan struct{}, 5+rand.Intn(6))},
+		&dish{name: "pimientos de padrón", morsels: make(chan struct{}, 5+rand.Intn(6))},
 	}
-	total := 0
+	var empty struct{}
 	for _, v := range d {
-		total += v.morsels
-	}
-	fmt.Printf("Total morsels: %d\n", total)
-	return &dinner{total: total, dishes: d}
-}
-
-func (d *dinner) getMorsel(done chan struct{}) string {
-	var dd *dish
-	for { // Inefficient as crap :D
-		s := rand.Intn(5)
-		dd = d.dishes[s]
-		dd.Lock()
-		if dd.morsels >= 1 {
-			dd.morsels--
-			dd.Unlock()
-			break
+		for i := 0; i < cap(v.morsels); i++ {
+			v.morsels <- empty
 		}
-		dd.Unlock()
 	}
-	d.Lock()
-	d.total--
-	if d.total == 0 {
-		close(done)
-	}
-	d.Unlock()
-	return dd.name
+	return &d
 }
 
 func person(name string, d *dinner, done chan struct{}, wg *sync.WaitGroup) {
+	var dishName string
 L:
 	for {
-		dishName := d.getMorsel(done)
+		select {
+		case <-d[0].morsels:
+			dishName = d[0].name
+		case <-d[1].morsels:
+			dishName = d[1].name
+		case <-d[2].morsels:
+			dishName = d[2].name
+		case <-d[3].morsels:
+			dishName = d[3].name
+		case <-d[4].morsels:
+			dishName = d[4].name
+		default: // No more food :/
+			break L
+		}
 		fmt.Printf("%s is enjoying some %s\n", name, dishName)
 		// sleepTime := time.Duration(30+rand.Intn(151)) * time.Second // 30s to 3 min
 		sleepTime := time.Duration(0+rand.Intn(1)) * time.Second
 		time.Sleep(sleepTime)
-		select {
-		case <-done:
-			break L
-		default:
-			continue
-		}
 	}
 	wg.Done()
 }

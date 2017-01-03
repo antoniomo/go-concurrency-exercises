@@ -20,13 +20,14 @@ func main() {
 }
 
 type iCafe struct {
-	freeComputers chan bool
+	freeComputers chan struct{}
 }
 
 func newiCafe() *iCafe {
-	c := &iCafe{make(chan bool, 8)}
+	c := &iCafe{make(chan struct{}, 8)}
+	var empty struct{}
 	for i := 0; i < 8; i++ {
-		c.freeComputers <- true
+		c.freeComputers <- empty
 	}
 	return c
 }
@@ -53,7 +54,8 @@ L:
 	fmt.Printf("Tourist %d is online.\n", number)
 	sleepTime := time.Duration(5+rand.Intn(5)) * time.Second
 	time.Sleep(sleepTime)
-	c.freeComputers <- true
+	var empty struct{}
+	c.freeComputers <- empty
 	fmt.Printf("Tourist %d is done.\n", number)
 	wg.Done()
 }
